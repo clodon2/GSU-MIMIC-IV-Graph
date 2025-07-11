@@ -3,3 +3,6 @@ numpy 2.3.1
 torch_geometric 2.6.1
 torch 2.7.1
 networkx 3.5
+
+WARNING:
+scipy 1.16 is needed for drawing large graphs

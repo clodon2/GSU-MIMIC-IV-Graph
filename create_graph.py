@@ -86,26 +86,32 @@ def create_patient_ego_graph(subject_id, data:dict[str:DataFrame]):
     admissions = data["admissions"]
     icu_stays = data["icu_stays"]
     for index, row in admissions.iterrows():
-        G.add_node(row["hadm_id"], type="admission", reason=row["admission_type"], death=row["deathtime"])
-        G.add_edge(subject_id, row["hadm_id"])
+        if pd.notna(row["hadm_id"]):
+            G.add_node(row["hadm_id"], type="admission", reason=row["admission_type"], death=row["deathtime"])
+            G.add_edge(subject_id, row["hadm_id"])
 
-        G.add_node(row["drg_code"], type="diagnosis", severity=row["drg_severity"], mortality=row["drg_mortality"])
-        G.add_edge(row["hadm_id"], row["drg_code"])
+        if pd.notna(row["drg_code"]):
+            G.add_node(row["drg_code"], type="diagnosis", severity=row["drg_severity"], mortality=row["drg_mortality"])
+            G.add_edge(row["hadm_id"], row["drg_code"])
 
-        G.add_node(row["admit_provider_id"], type="provider")
-        G.add_edge(row["hadm_id"], row["admit_provider_id"])
+        if pd.notna(row["admit_provider_id"]):
+            G.add_node(row["admit_provider_id"], type="provider")
+            G.add_edge(row["hadm_id"], row["admit_provider_id"])
 
     for index, row in icu_stays.iterrows():
-        G.add_node(row["stay_id"], type="icu stay", los=row["los"])
-        G.add_edge(row["hadm_id"], row["stay_id"])
+        if pd.notna(row["stay_id"]):
+            G.add_node(row["stay_id"], type="icu stay", los=row["los"])
+            G.add_edge(row["hadm_id"], row["stay_id"])
 
     for index, row in data["procedures"].iterrows():
-        G.add_node(row["itemid"], type="procedure", value=row["value"], measurement=row["valueuom"],
-                   location_category=row["locationcategory"])
-        if not math.isnan(row["caregiver_id"]):
-            G.add_node(row["caregiver_id"], type="provider")
-            G.add_edge(row["itemid"], row["caregiver_id"])
-        G.add_edge(row["stay_id"], row["itemid"])
+        if pd.notna(row["itemid"]):
+            G.add_node(row["itemid"], type="procedure", value=row["value"], measurement=row["valueuom"],
+                       location_category=row["locationcategory"])
+            if pd.notna(row["caregiver_id"]):
+                G.add_node(row["caregiver_id"], type="provider")
+                G.add_edge(row["itemid"], row["caregiver_id"])
+            G.add_edge(row["stay_id"], row["itemid"])
+
 
     return subject_id, G
 
