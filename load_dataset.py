@@ -6,7 +6,7 @@ def load_dataset_files(dataset_path):
     procedures_path = dataset_path + "./icu/procedureevents.csv"
     admissions_path = dataset_path + "/hosp/admissions.csv"
     drg_codes_path = dataset_path + "/hosp/drgcodes.csv"
-    icu_stays = pd.read_csv(icu_stays_path, nrows=1000)
+    icu_stays = pd.read_csv(icu_stays_path)
     procedures_path = pd.read_csv(procedures_path)
     admissions = pd.read_csv(admissions_path)
     # skiprows because we only need APR diagnosis type

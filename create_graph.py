@@ -15,6 +15,11 @@ def create_ego_graphs(dataset_info: dict[str, pd.DataFrame]):
     icu_info = dataset_info["icu_stays"][["subject_id", "hadm_id", "stay_id", "los"]].itertuples(index=False, name=None)
     icu_info = list(icu_info)
 
+    dataset_info["admissions"] = dataset_info["admissions"].groupby("subject_id")
+    dataset_info["drg_codes"] = dataset_info["drg_codes"].groupby("subject_id")
+    dataset_info["icu_stays"] = dataset_info["icu_stays"].groupby("subject_id")
+    dataset_info["procedures"] = dataset_info["procedures"].groupby("stay_id")
+
     with Pool(cpu_count() - 1, initializer=init_worker, initargs=(dataset_info,)) as p:
         pool_args = list(tqdm(
             p.imap(construct_ego_args, icu_info),
@@ -42,25 +47,26 @@ def init_worker(dataset):
 
 def construct_ego_args(subject_info:tuple):
     subject_id, hadm_id, stay_id, los = subject_info
-    adm = global_dataset["admissions"]
-    drg = global_dataset["drg_codes"]
-    icu_stays = global_dataset["icu_stays"]
-    procedures = global_dataset["procedures"]
-    admission_data = adm.loc[
-        adm["subject_id"] == subject_id, ["hadm_id", "admittime", "admit_provider_id", "admission_type", "deathtime"]]
-    drg_data = drg.loc[
-        drg["subject_id"] == subject_id, ["hadm_id", "drg_type", "drg_code", "drg_severity", "drg_mortality"]]
+    empty_adm = pd.DataFrame(columns=["hadm_id", "admittime", "admit_provider_id", "admission_type", "deathtime"])
+    empty_drg = pd.DataFrame(columns=["hadm_id", "drg_type", "drg_code", "drg_severity", "drg_mortality"])
+    empty_icu = pd.DataFrame(columns=["hadm_id", "stay_id", "los"])
+    empty_procs = pd.DataFrame(columns=["stay_id", "caregiver_id", "locationcategory", "itemid", "value", "valueuom"])
+
+    adm = global_dataset["admissions"].get_group(subject_id) if subject_id in global_dataset["admissions"].groups else empty_adm
+    drg = global_dataset["drg_codes"].get_group(subject_id) if subject_id in global_dataset["drg_codes"].groups else empty_drg
+    icu_stays = global_dataset["icu_stays"].get_group(subject_id) if subject_id in global_dataset["icu_stays"].groups else empty_icu
+    procedures = global_dataset["procedures"].get_group(stay_id) if stay_id in global_dataset["procedures"].groups else empty_procs
+
+    admission_data = adm[["hadm_id", "admittime", "admit_provider_id", "admission_type", "deathtime"]]
+    drg_data = drg[["hadm_id", "drg_type", "drg_code", "drg_severity", "drg_mortality"]]
     admission_data = pd.merge(admission_data, drg_data, on="hadm_id", how="left")
 
-    stay_data = icu_stays.loc[
-        icu_stays["subject_id"] == subject_id, ["hadm_id", "stay_id", "los"]]
-    procedures = procedures.loc[
-        procedures["stay_id"] == stay_id, ["stay_id", "caregiver_id", "locationcategory", "itemid",
-                                                           "value", "valueuom"]]
+    stay_data = icu_stays[["hadm_id", "stay_id", "los"]]  if not icu_stays.empty else pd.DataFrame()
+    procedures_data = procedures[["stay_id", "caregiver_id", "locationcategory", "itemid", "value", "valueuom"]]
 
     ego_dict = {"admissions": admission_data,
                 "icu_stays": stay_data,
-                "procedures": procedures}
+                "procedures": procedures_data}
 
     return subject_id, ego_dict
 
