@@ -12,7 +12,7 @@ global_dataset = None
 def create_ego_graphs(dataset_info: dict[str, pd.DataFrame]):
     egos = {}
 
-    icu_info = dataset_info["icu_stays"][["subject_id", "hadm_id", "stay_id", "los"]].itertuples(index=False, name=None)
+    icu_info = dataset_info["icu_stays"]["subject_id"].unique()
     icu_info = list(icu_info)
 
     dataset_info["admissions"] = dataset_info["admissions"].groupby("subject_id")
@@ -46,7 +46,7 @@ def init_worker(dataset):
 
 
 def construct_ego_args(subject_info:tuple):
-    subject_id, hadm_id, stay_id, los = subject_info
+    subject_id = subject_info
     empty_adm = pd.DataFrame(columns=["hadm_id", "admittime", "admit_provider_id", "admission_type", "deathtime"])
     empty_drg = pd.DataFrame(columns=["hadm_id", "drg_type", "drg_code", "drg_severity", "drg_mortality"])
     empty_icu = pd.DataFrame(columns=["hadm_id", "stay_id", "los"])
@@ -55,7 +55,15 @@ def construct_ego_args(subject_info:tuple):
     adm = global_dataset["admissions"].get_group(subject_id) if subject_id in global_dataset["admissions"].groups else empty_adm
     drg = global_dataset["drg_codes"].get_group(subject_id) if subject_id in global_dataset["drg_codes"].groups else empty_drg
     icu_stays = global_dataset["icu_stays"].get_group(subject_id) if subject_id in global_dataset["icu_stays"].groups else empty_icu
-    procedures = global_dataset["procedures"].get_group(stay_id) if stay_id in global_dataset["procedures"].groups else empty_procs
+    stay_ids = icu_stays["stay_id"].unique()
+    grouped_procs = global_dataset["procedures"]
+
+    valid_stays = [stay for stay in stay_ids if stay in global_dataset["procedures"].groups]
+
+    procedures = (
+        pd.concat([grouped_procs.get_group(stay) for stay in valid_stays], axis=0)
+        if valid_stays else empty_procs
+    )
 
     admission_data = adm[["hadm_id", "admittime", "admit_provider_id", "admission_type", "deathtime"]]
     drg_data = drg[["hadm_id", "drg_type", "drg_code", "drg_severity", "drg_mortality"]]
@@ -100,3 +108,7 @@ def create_patient_ego_graph(subject_id, data:dict[str:DataFrame]):
         G.add_edge(row["stay_id"], row["itemid"])
 
     return subject_id, G
+
+
+def combine_graphs(subgraphs:dict[int:nx.Graph]):
+    return nx.compose_all(subgraphs.values())
